@@ -1,29 +1,33 @@
 ﻿using Azure.Messaging.ServiceBus;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using Polly;
 using System.Text.Json;
-using System.Threading.Tasks;
 
-namespace AzureServiceBus.Interaction.Sender
+namespace AzureServiceBus.Interaction.Sender;
+
+public interface IAzureServiceBusSender
 {
-    public class AzureServiceBusSender
+    Task SendMessageAsync<T>(string queueName, T message);
+}
+
+public class AzureServiceBusSender : IAzureServiceBusSender
+{
+    private readonly ServiceBusClient _client;
+
+    public AzureServiceBusSender(ServiceBusClient client)
     {
-        private readonly ServiceBusClient _client;
+        _client = client;
+    }
 
-        public AzureServiceBusSender(ServiceBusClient client)
-        {
-            _client = client;
-        }
+    public async Task SendMessageAsync<T>(string queueName, T message)
+    {
+        var sender = _client.CreateSender(queueName);
+        var json = JsonSerializer.Serialize(message);
+        var sbMessage = new ServiceBusMessage(json);
 
-        public async Task SendMessageAsync<T>(string QueueName, T message)
-        {
-            var sender = _client.CreateSender(QueueName);
-            var json = JsonSerializer.Serialize(message);
-            var sbMessage = new ServiceBusMessage(json);
-            await sender.SendMessageAsync(sbMessage);
-        }
+        var retryPolicy = Policy
+            .Handle<Exception>()
+            .WaitAndRetryAsync(3, i => TimeSpan.FromSeconds(i)); // configurable a futuro
+
+        await retryPolicy.ExecuteAsync(() => sender.SendMessageAsync(sbMessage));
     }
 }
