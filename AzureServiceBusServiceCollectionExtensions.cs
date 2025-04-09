@@ -16,7 +16,6 @@ public static class AzureServiceBusServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton(new ServiceBusClient(options.ConnectionString));
         services.AddSingleton<IAzureServiceBusSender, AzureServiceBusSender>();
-        services.AddHostedService<AzureServiceBusBackgroundProcessor>();
 
         return services;
     }
